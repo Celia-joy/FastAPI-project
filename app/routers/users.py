@@ -8,6 +8,7 @@ from app.schemas.user import (
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.models.user import User
+from app.services.password import hash_password
 
 
 router = APIRouter()
@@ -29,11 +30,12 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
             status_code=409,
             detail="Email already registered"
         )
+    hashed_password = hash_password(user.password)
     db_user = User(
         name=user.name,
         email=user.email,
         age=user.age,
-        password=user.password
+        password=hashed_password
     )
     db.add(db_user)
     db.commit()

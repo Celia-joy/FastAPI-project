@@ -10,7 +10,7 @@ def verify_password(password: str, hashed_password: str):
     hashed_password_bytes = hashed_password.encode("utf-8")
     return bcrypt.checkpw(password_bytes, hashed_password_bytes)
 
-
+"""
 hashed = hash_password("secret123")
 
 print("Hashed:", hashed)
@@ -18,3 +18,5 @@ print("Hashed:", hashed)
 print("Correct password:", verify_password("secret123", hashed))
 
 print("Wrong password:", verify_password("wrongpassword", hashed))
+"""
+
