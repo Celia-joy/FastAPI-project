@@ -3,12 +3,14 @@ from app.schemas.user import (
     UserCreate,
     UserResponse,
     UserCreateResponse,
-    UserUpdate
+    UserUpdate,
+    UserLogin
 )
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.models.user import User
-from app.services.password import hash_password
+from app.services.password import hash_password, verify_password
+
 
 
 router = APIRouter()
@@ -45,6 +47,24 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         "user" : db_user
     }
 
+@router.post("/login")
+def login(user_data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == user_data.email).first()
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+
+    if not verify_password(user_data.password, user.password):
+        raise HTTPException(
+            status_code=401,
+            detail="Unathorized"
+        )
+    return {
+        "message": "Login successful"
+
+    }
 @router.get("/users", response_model=list[UserResponse])
 def get_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
