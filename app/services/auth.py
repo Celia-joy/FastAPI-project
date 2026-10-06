@@ -14,6 +14,5 @@ def create_acess_token(data: dict):
         SECRET_KEY,
         algorithm=ALGORITHM
     )
-
     return token
     

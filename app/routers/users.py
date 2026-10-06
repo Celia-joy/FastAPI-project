@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.models.user import User
 from app.services.password import hash_password, verify_password
+from app.services.auth import create_access_token
 
 
 
@@ -61,9 +62,13 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             status_code=401,
             detail="Unathorized"
         )
+    
+    access_token = create_access_token({
+        "sub" : user.email
+    })
     return {
-        "message": "Login successful"
-
+        "message": "Login successful",
+        "access_token": access_token
     }
 @router.get("/users", response_model=list[UserResponse])
 def get_users(db: Session = Depends(get_db)):
