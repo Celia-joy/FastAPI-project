@@ -11,6 +11,7 @@ from app.database.connection import get_db
 from app.models.user import User
 from app.services.password import hash_password, verify_password
 from app.services.auth import create_access_token
+from app.services.auth import get_current_user
 
 
 
@@ -71,7 +72,11 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token
     }
 @router.get("/users", response_model=list[UserResponse])
-def get_users(db: Session = Depends(get_db)):
+def get_users(
+    db: Session = Depends(get_db),
+    current_user: str = Depends(get_current_user)
+):
+    print("Authenticated user:", current_user)
     users = db.query(User).all()
     return users
 
