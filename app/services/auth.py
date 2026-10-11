@@ -3,14 +3,21 @@ import os
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
+from datetime import datetime, timedelta, timezone
+
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def create_access_token(data: dict):
     to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    to_encode.update({"exp": expire})
 
     token = jwt.encode(
         to_encode,
@@ -34,6 +41,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
                 detail="Invalid token"
             )
         return email
+    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail="Token has expired"
+        )
 
     except jwt.InvalidTokenError: 
         raise HTTPException(

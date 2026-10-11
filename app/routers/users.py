@@ -4,7 +4,8 @@ from app.schemas.user import (
     UserResponse,
     UserCreateResponse,
     UserUpdate,
-    UserLogin
+    UserLogin,
+    Token
 )
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
@@ -69,7 +70,8 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     })
     return {
         "message": "Login successful",
-        "access_token": access_token
+        "access_token": access_token,
+        "token_type": "bearer"
     }
 @router.get("/users", response_model=list[UserResponse])
 def get_users(
