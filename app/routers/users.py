@@ -11,8 +11,12 @@ from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.models.user import User
 from app.services.password import hash_password, verify_password
-from app.services.auth import create_access_token
-from app.services.auth import get_current_user
+from app.services.auth import (
+    create_access_token,
+    get_current_user,
+    require_role
+)
+
 
 
 
@@ -75,11 +79,21 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 @router.get("/users", response_model=list[UserResponse])
 def get_users(
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    print("Authenticated user:", current_user)
+    print("Authenticated user:", current_user.email)
+    print("User role:", current_user.role)
     users = db.query(User).all()
     return users
+
+@router.get("/admin/dashboard")
+def admin_dashboard(
+    current_user: User = Depends(require_role("admin"))
+):
+    return {
+        "message": f"Welcome, {current_user.name}!",
+        "role": current_user.role
+    }
 
 @router.get("/users/{id}", response_model=UserResponse)
 def get_user_by_id(id: int, db: Session = Depends(get_db)):
@@ -106,9 +120,9 @@ def update_user (
     for key, value in update_data.items():
         setattr(user, key, value)
 
-        db.commit()
-        db.refresh(user)
-        return user
+    db.commit()
+    db.refresh(user)
+    return user
 
 @router.delete("/users/{id}")
 def delete_user(id: int, db: Session = Depends(get_db)):
