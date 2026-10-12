@@ -11,3 +11,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(150), unique=True, index=True)
     age: Mapped[int] = mapped_column(Integer)
     password: Mapped[str] = mapped_column(String(255))
+
+    role: Mapped[str] = mapped_column(
+        String(20),
+        default="student",
+        nullable=False
+    )

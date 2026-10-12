@@ -50,7 +50,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         "user" : db_user
     }
 
-@router.post("/login")
+@router.post("/login", response_model=Token)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_data.email).first()
     if user is None:
@@ -69,7 +69,6 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         "sub" : user.email
     })
     return {
-        "message": "Login successful",
         "access_token": access_token,
         "token_type": "bearer"
     }
