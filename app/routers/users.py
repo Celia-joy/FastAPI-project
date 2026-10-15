@@ -79,7 +79,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 @router.get("/users", response_model=list[UserResponse])
 def get_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role("admin"))
 ):
     print("Authenticated user:", current_user.email)
     print("User role:", current_user.role)
@@ -96,26 +96,64 @@ def admin_dashboard(
     }
 
 @router.get("/users/{id}", response_model=UserResponse)
-def get_user_by_id(id: int, db: Session = Depends(get_db)):
+def get_user_by_id(
+    id: int, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+    ):
     user = db.query(User).filter(User.id == id).first()
+    if user is None:
+        raise HTTPException(
+            status_code = 404,
+            detail = "User not found"
+        )
+
+    if current_user.id != user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code = 403,
+            detail = "Insufficient permissions"
+        )
     return user
 
 @router.patch("/users/{id}", response_model=UserResponse)
 def update_user (
     id: int,
     user_data: UserUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
 
     user = db.query(User).filter(User.id == id).first()
 
     if user is None:
         raise HTTPException(
-            status_code=404,
-            detail="User not found"
+            status_code = 404,
+            detail = "User not found"
         )
-    
-    update_data = user_data.model_dump(exclude_unset=True)
+
+    if current_user.id != user.id and current_user.role != "admin":
+        raise HTTPException (
+            status_code = 403,
+            detail = "Insufficient permissions"
+        )
+
+    update_data = user_data.model_dump(exclude_unset = True)
+
+    if "email" in update_data and update_data["email"] is not None:
+        existing_user = (
+            db.query(User)
+            .filter(
+                User.email == update_data["email"],
+                User.id != user.id
+            )
+            .first()
+        )
+
+        if existing_user:
+            raise HTTPException(
+                status_code = 409,
+                detail = "Email already registered"
+            )
 
     for key, value in update_data.items():
         setattr(user, key, value)
@@ -125,7 +163,11 @@ def update_user (
     return user
 
 @router.delete("/users/{id}")
-def delete_user(id: int, db: Session = Depends(get_db)):
+def delete_user(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin"))
+    ):
     user = db.query(User).filter(User.id == id).first()
 
     if user is None:

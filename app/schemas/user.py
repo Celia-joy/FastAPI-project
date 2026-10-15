@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 
 class UserCreate(BaseModel): 
@@ -22,7 +22,7 @@ class UserCreateResponse(BaseModel):
 
 class UserUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1)
-    email: str | None = None
+    email: EmailStr | None = None
     age: int | None = Field(default=None, ge=0, le=120)
 
 class Token(BaseModel):
