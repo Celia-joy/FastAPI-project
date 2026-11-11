@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.database.connection import Base, engine
-from app.models import user
+from app.models import user, refresh_token
 from app.routers import users
 
 app = FastAPI()
