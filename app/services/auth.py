@@ -21,6 +21,7 @@ if ALGORITHM != "HS256":
     raise RunTimeError("Unsupported JWT algorithm")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 15
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
@@ -58,6 +59,29 @@ def create_refresh_token(data:dict):
         SECRET_KEY,
         algorithm=ALGORITHM
     )
+    return encoded_token, jti, int(expire.timestamp())
+
+def create_password_reset_token(data:dict):
+    to_encode = data.copy()
+
+    jti = str(uuid.uuid4())
+
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    )
+
+    to_encode.update({
+        "exp" : expire,
+        "type": "password_reset",
+        "jti": jti
+    })
+
+    encoded_token = jwt.encode(
+        to_encode,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+
     return encoded_token, jti, int(expire.timestamp())
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):

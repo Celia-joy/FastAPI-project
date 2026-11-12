@@ -7,17 +7,26 @@ from app.schemas.user import (
     UserUpdate,
     UserLogin,
     Token,
-    RefreshTokenRequest
+    RefreshTokenRequest,
+    PasswordChange,
+    ForgotPasswordRequest,
+    ResetPasswordRequest
 )
 from sqlalchemy.orm import Session
+
 from app.database.connection import get_db
+
 from datetime import datetime, timezone
+
 from app.models.user import User
 from app.models.refresh_token import RefreshToken
+from app.models.password_reset_token import PasswordResetToken
+
 from app.services.password import hash_password, verify_password
 from app.services.auth import (
     create_access_token,
     create_refresh_token,
+    create_password_reset_token,
     get_current_user,
     require_role,
     SECRET_KEY,
@@ -183,7 +192,157 @@ def refresh_access_token(
         "access_token": new_access_token,
         "refresh_token": new_refresh_token,
         "token_type": "bearer"
-    } 
+    }
+
+@router.post("/forgot-password")
+def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+
+    user = db.query(User).filter(
+        User.email == request.email
+    ).first()
+
+    if not user:
+        return {
+            "message": "If the account exists, a password reset request has been created."
+        }
+
+    token, jti, expires_at = create_password_reset_token({
+        "sub": user.email
+    })
+
+    reset_record = PasswordResetToken(
+        jti=jti,
+        user_id=user.id,
+        expires_at=expires_at
+    )
+
+    db.add(reset_record)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "message" : "If the account exists, a password reset request has been created.",
+        "development_reset_token" : token
+    }
+
+@router.post("/logout")
+def logout(
+    token_data: RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        payload = jwt.decode(
+            token_data.refresh_token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    email = payload.get("sub")
+    token_type = payload.get("type")
+    jti = payload.get("jti")
+
+    if not email or token_type != "refresh" or not jti:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    user = db.query(User).filter(
+        User.email == email
+    ).first()
+
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found"
+        )
+
+    stored_token = db.query(RefreshToken).filter(
+        RefreshToken.jti == jti
+    ).first()
+
+    if (
+        stored_token is None
+        or stored_token.user_id != user.id
+        or stored_token.revoked
+        or stored_token.expires_at <= int(
+            datetime.now(timezone.utc).timestamp()
+        )
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token is invalid or has been revoked"
+        )
+
+    stored_token.revoked = True
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "message": "Successfully logged out"
+    }
+
+@router.post("/change-password")
+def change_password(
+    password_data: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    if not verify_password(
+        password_data.current_password,
+        current_user.password
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Current password is incorrect"
+        )
+
+    if verify_password(
+        password_data.new_password,
+        current_user.password
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different"
+        )
+
+    current_user.password = hash_password(
+        password_data.new_password
+    )
+
+    active_tokens = db.query(RefreshToken).filter(
+        RefreshToken.user_id == current_user.id,
+        RefreshToken.revoked == False
+    ).all()
+
+    for token in active_tokens:
+        token.revoked = True
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "message" : "Password changed successfully. Please log in again."
+    }
 
 @router.get("/users", response_model=list[UserResponse])
 def get_users(
