@@ -232,6 +232,98 @@ def forgot_password(
         "development_reset_token" : token
     }
 
+@router.post("/reset-password")
+def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        payload = jwt.decode(
+            request.token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail="Password reset token has expired"
+        )
+
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid password reset token"
+        )
+
+    email = payload.get("sub")
+    token_type = payload.get("type")
+    jti = payload.get("jti")
+
+    if not email or token_type != "password_reset" or not jti:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid password reset token"
+        )
+
+    user = db.query(User).filter(
+        User.email == email
+    ).first()
+
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid password reset token"
+        )
+
+    stored_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.jti == jti
+    ).first()
+
+    if(
+        stored_token is None
+        or stored_token.user_id != user.id
+        or stored_token.used
+        or stored_token.expires_at <= int(
+            datetime.now(timezone.utc).timestamp()
+        )
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Password reset token is invalid or has already been used"
+        )
+
+    if verify_password(
+        request.new_password,
+        user.password
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different"
+        )
+
+    user.password = hash_password(request.new_password)
+    stored_token.used = True
+
+    active_tokens = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user.id,
+        RefreshToken.revoked == False
+    ).all()
+
+    for token in active_tokens:
+        token.revoked = True
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "message": "Password reset successfully. Please log in again."
+    }
+
 @router.post("/logout")
 def logout(
     token_data: RefreshTokenRequest,
