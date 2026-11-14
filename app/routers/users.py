@@ -209,6 +209,14 @@ def forgot_password(
             "message": "If the account exists, a password reset request has been created."
         }
 
+    previous_tokens = db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used == False
+    ).all()
+
+    for previous_token in previous_tokens:
+        previous_token.used = True
+
     token, jti, expires_at = create_password_reset_token({
         "sub": user.email
     })
@@ -280,7 +288,7 @@ def reset_password(
         PasswordResetToken.jti == jti
     ).first()
 
-    if(
+    if (
         stored_token is None
         or stored_token.user_id != user.id
         or stored_token.used
